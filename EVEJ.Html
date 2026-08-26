@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="lo">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EVEJ Bank Online</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        * { font-family: "Phetsarath OT", serif !important; box-sizing: border-box; margin: 0; padding: 0; }
+        body { background-color: #0f172a; color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 12px; }
+        .app-card { background: #1e293b; width: 100%; max-width: 420px; border-radius: 16px; padding: 20px; border: 1px solid #334155; box-shadow: 0 10px 25px rgba(0,0,0,0.5); position: relative; }
+        .title { text-align: center; color: #38bdf8; font-size: 20px; font-weight: bold; margin-bottom: 16px; }
+        input, select { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: white; font-size: 13px; margin-bottom: 10px; outline: none; }
+        input:focus, select:focus { border-color: #38bdf8; }
+        .btn { width: 100%; padding: 10px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 13px; margin-top: 6px; }
+        .btn-blue { background: #0284c7; color: white; }
+        .btn-green { background: #10b981; color: white; }
+        .btn-red { background: #ef4444; color: white; }
+        .btn-warning { background: #f59e0b; color: white; }
+        .btn-dark { background: #334155; color: white; }
+        .tab-group { display: flex; gap: 8px; margin-bottom: 14px; }
+        .tab-btn { flex: 1; padding: 8px; background: #0f172a; color: #94a3b8; border: 1px solid #334155; border-radius: 8px; cursor: pointer; text-align: center; font-size: 12px; font-weight: bold; }
+        .tab-btn.active { background: #0284c7; color: white; border-color: #0284c7; }
+        .balance-box { background: linear-gradient(135deg, #0284c7, #0369a1); padding: 16px; border-radius: 12px; text-align: center; margin-bottom: 14px; }
+        .balance-amount { font-size: 24px; font-weight: bold; color: #ffffff; margin-top: 4px; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; z-index: 2000; padding: 12px; }
+        .modal-box { background: #1e293b; width: 100%; max-width: 380px; padding: 16px; border-radius: 12px; border: 1px solid #334155; }
+        #qrDisplay { display: flex; justify-content: center; background: white; padding: 12px; border-radius: 8px; width: fit-content; margin: 10px auto; }
+        .item-card { background: #0f172a; padding: 10px; border-radius: 8px; margin-bottom: 8px; border: 1px solid #334155; font-size: 12px; }
+        .badge { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; display: inline-block; }
+        .badge-pending { background: #f59e0b; color: black; }
+        .badge-success { background: #10b981; color: white; }
+        .badge-failed { background: #ef4444; color: white; }
+        .slip-box { background: #ffffff; color: #0f172a; border-radius: 12px; padding: 16px; text-align: center; border: 2px dashed #0284c7; }
+        .slip-title { font-size: 16px; font-weight: bold; color: #0284c7; margin-bottom: 8px; border-bottom: 1px solid #cbd5e1; padding-bottom: 6px; }
+        .slip-row { display: flex; justify-content: space-between; font-size: 12px; margin: 6px 0; text-align: left; }
+    </style>
+</head>
+<body>
+
+    <div class="app-card">
+        <!-- Auth Section -->
+        <div id="authSection">
+            <div class="title">🏦 EVEJ Bank Online</div>
+            <div class="tab-group">
+                <button class="tab-btn active" id="tabLogin" onclick="switchAuthTab('login')">ເຂົ້າສູ່ລະບົບ</button>
+                <button class="tab-btn" id="tabRegister" onclick="switchAuthTab('register')">ລົງທະບຽນ</button>
+            </div>
+            <div id="loginForm">
+                <input type="text" id="loginUser" placeholder="ຊື່ຜູ້ໃຊ້ (Username)">
+                <input type="password" id="loginPass" placeholder="ລະຫັດຜ່ານ (Password)">
+                <button class="btn btn-blue" onclick="handleLogin()">🔑 ເຂົ້າສູ່ລະບົບ</button>
+            </div>
+            <div id="registerForm" style="display: none;">
+                <input type="text" id="regUser" placeholder="ຊື່ຜູ້ໃຊ້ (Username)">
+                <input type="password" id="regPass" placeholder="ລະຫັດຜ່ານ (Password)">
+                <button class="btn btn-green" onclick="handleRegister()">📝 ລົງທະບຽນ</button>
+            </div>
+        </div>
+
+        <!-- User Dashboard -->
+        <div id="dashSection" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <span id="userGreeting" style="font-weight: bold; font-size: 14px; color: #38bdf8;"></span>
+                <button class="btn btn-red" style="width: auto; padding: 4px 10px; margin: 0; font-size: 11px;" onclick="logout()">ອອກ</button>
+            </div>
+            <div class="balance-box">
+                <div style="font-size: 12px; color: #e0f2fe;">ຍອດເງິນໃນບັນຊີ</div>
+                <div class="balance-amount" id="userBalance">0 ₭</div>
+                <div style="font-size: 11px; color: #bae6fd; margin-top: 4px;" id="accNumber">ເລກບັນຊີ: -</div>
+            </div>
+            <div class="grid-2">
+                <button class="btn btn-green" onclick="openModal('depositModal')">📥 ຝາກເງິນ</button>
+                <button class="btn btn-warning" onclick="openModal('withdrawModal')">📤 ຖອນເງິນ</button>
+            </div>
+            <div class="grid-2">
+                <button class="btn btn-blue" onclick="openModal('transferModal')">💸 ໂອນເງິນ</button>
+                <button class="btn btn-dark" style="background: #0284c7;" onclick="openScanModal()">📷 ສະແກນ QR</button>
+            </div>
+            <button class="btn btn-dark" style="margin-top: 6px;" onclick="openQrModal()">📱 ຄິວອາຂອງຂ້ອຍ (Receive QR)</button>
+            <div style="margin-top: 16px;">
+                <div style="font-size: 12px; font-weight: bold; margin-bottom: 6px; color: #94a3b8;">📋 ປະວັດການເຮັດທຸລະກຳ:</div>
+                <div id="userRequestList" style="max-height: 180px; overflow-y: auto;"></div>
+            </div>
+        </div>
+
+        <!-- Admin Section -->
+        <div id="adminSection" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <span style="font-weight: bold; color: #f59e0b; font-size: 14px;">⚙️ Admin Control Panel</span>
+                <button class="btn btn-red" style="width: auto; padding: 4px 10px; margin: 0; font-size: 11px;" onclick="logout()">ອອກ</button>
+            </div>
+            <div class="tab-group">
+                <button class="tab-btn active" id="tabAdminReq" onclick="switchAdminTab('req')">📋 ຄຳຮ້ອງ</button>
+                <button class="tab-btn" id="tabAdminUsers" onclick="switchAdminTab('users')">👥 ຈັດການ User</button>
+            </div>
+            <div id="adminReqView">
+                <div id="adminRequestList" style="max-height: 350px; overflow-y: auto;"></div>
+            </div>
+            <div id="adminUserView" style="display: none;">
+                <button class="btn btn-green" style="margin-bottom: 10px;" onclick="openModal('addUserModal')">➕ ເພີ່ມ User ໃໝ່</button>
+                <div id="adminUserList" style="max-height: 300px; overflow-y: auto;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div class="modal" id="depositModal">
+        <div class="modal-box">
+            <h3 style="color: #10b981; margin-bottom: 10px;">📥 ຝາກເງິນ</h3>
+            <input type="number" id="depositAmt" placeholder="ຈຳນວນເງິນ (₭)">
+            <button class="btn btn-green" onclick="submitDeposit()">ສົ່ງຄຳຮ້ອງຝາກເງິນ</button>
+            <button class="btn btn-dark" onclick="closeModal('depositModal')">ປິດ</button>
+        </div>
+    </div>
+
+    <div class="modal" id="withdrawModal">
+        <div class="modal-box">
+            <h3 style="color: #f59e0b; margin-bottom: 10px;">📤 ຖອນເງິນ</h3>
+            <input type="number" id="withdrawAmt" placeholder="ຈຳນວນເງິນ (₭)">
+            <button class="btn btn-warning" onclick="submitWithdraw()">ສົ່ງຄຳຮ້ອງຖອນເງິນ</button>
+            <button class="btn btn-dark" onclick="closeModal('withdrawModal')">ປິດ</button>
+        </div>
+    </div>
+
+    <div class="modal" id="transferModal">
+        <div class="modal-box">
+            <h3 style="color: #38bdf8; margin-bottom: 10px;">💸 ໂອນເງິນ</h3>
+            <input type="text" id="targetAccInput" placeholder="ເລກບັນຊີຜູ້ຮັບ">
+            <input type="number" id="transferAmtInput" placeholder="ຈຳນວນເງິນ (₭)">
+            <button class="btn btn-blue" onclick="processTransfer()">ຢືນຢັນການໂອນ</button>
+            <button class="btn btn-dark" onclick="closeModal('transferModal')">ປິດ</button>
+        </div>
+    </div>
+
+    <div class="modal" id="slipModal">
+        <div class="modal-box"><div class="slip-box" id="slipContent"></div><button class="btn btn-blue" style="margin-top: 10px;" onclick="closeModal('slipModal')">✅ ຕົກລົງ</button></div>
+    </div>
+
+    <div class="modal" id="qrModal">
+        <div class="modal-box" style="text-align: center;">
+            <h3 style="color: #10b981;">📱 QR Code ຮັບເງິນ</h3>
+            <div id="qrDisplay"></div>
+            <p style="font-size: 11px; color: #94a3b8;" id="qrAccLabel"></p>
+            <button class="btn btn-dark" style="margin-top: 10px;" onclick="closeModal('qrModal')">ປິດ</button>
+        </div>
+    </div>
+
+    <div class="modal" id="scanModal">
+        <div class="modal-box" style="text-align: center;">
+            <h3 style="color: #38bdf8; margin-bottom: 8px;">📷 ສະແກນ QR Code</h3>
+            <div id="reader" style="width: 100%;"></div>
+            <button class="btn btn-red" style="margin-top: 10px;" onclick="closeScanModal()">ປິດກ້ອງ</button>
+        </div>
+    </div>
+
+    <div class="modal" id="addUserModal">
+        <div class="modal-box">
+            <h3 style="color: #10b981; margin-bottom: 10px;">➕ ເພີ່ມ User ໃໝ່</h3>
+            <input type="text" id="addAdminUser" placeholder="ຊື່ຜູ້ໃຊ້ (Username)">
+            <input type="text" id="addAdminPass" placeholder="ລະຫັດຜ່ານ">
+            <input type="number" id="addAdminBal" placeholder="ຍອດເງິນเริ่มต้น (₭)">
+            <button class="btn btn-green" onclick="adminCreateUser()">ເພີ່ມ</button>
+            <button class="btn btn-dark" onclick="closeModal('addUserModal')">ປິດ</button>
+        </div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://ygencncmegrpvrlnduuz.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_fFoslh81wkBZprRYBYF5Og_R6yug9aV';
+        const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        const ADMIN_USER = "AdminJackkdorSan";
+        const ADMIN_PASS = "AdminJacksan522553Admin";
+
+        let currentUser = localStorage.getItem('evej_curr_user') || null;
+        let currentUserData = null;
+        let html5QrcodeScanner = null;
+        let realtimeChannel = null;
+
+        // 🎵 ລະບົບສຽງເອັຟເຟັກ ຕີ້ບ (AudioBeep Engine)
+        let audioCtx = null;
+        function initAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+        }
+
+        function playBeepSound(type = 'success') {
+            try {
+                initAudio();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                if (type === 'success') {
+                    // ສຽງຕີ້ບ 2 ສຽງ (High Beep-Beep)
+                    osc.frequency.setValueAtTime(587.33, audioCtx.currentTime);
+                    osc.frequency.setValueAtTime(880, audioCtx.currentTime + 0.1);
+                    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.35);
+                    osc.start(audioCtx.currentTime);
+                    osc.stop(audioCtx.currentTime + 0.35);
+                } else {
+                    // ສຽງປີ້ບ ເອີເລີ້ (Low Error Tone)
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(160, audioCtx.currentTime);
+                    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+                    osc.start(audioCtx.currentTime);
+                    osc.stop(audioCtx.currentTime + 0.25);
+                }
+            } catch (e) { console.log(e); }
+        }
+
+        window.onload = async function() {
+            document.addEventListener('click', initAudio, { once: true });
+
+            if (currentUser === "ADMIN") {
+                showAdminPanel();
+            } else if (currentUser) {
+                let { data } = await db.from('users').select('*').eq('username', currentUser).maybeSingle();
+                if (data) { 
+                    currentUserData = data; 
+                    showUserDashboard(); 
+                } else logout();
+            }
+        };
+
+        // 📡 ລະບົບ REALTIME: ເປີດຮັບ Realtime ທັງ Slips ແລະ Balance ໂດຍບໍ່ຕ້ອງ Refresh
+        function setupRealtime() {
+            if (realtimeChannel) db.removeChannel(realtimeChannel);
+
+            realtimeChannel = db.channel('evej-bank-realtime')
+                .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'slips' }, payload => {
+                    const newSlip = payload.new;
+                    if (newSlip.receiver === currentUser) {
+                        playBeepSound('success'); // 🎵 ດັງສຽງຕີ້ບແຈ້ງເຕືອນຜູ້ຮັບທັນທີ
+                        updateUserBalanceOnly();
+                        renderUserHistory();
+                    }
+                })
+                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'users' }, payload => {
+                    if (payload.new.username === currentUser) {
+                        currentUserData.balance = payload.new.balance;
+                        document.getElementById('userBalance').innerText = `${Number(payload.new.balance).toLocaleString()} ₭`;
+                    }
+                })
+                .subscribe();
+        }
+
+        async function updateUserBalanceOnly() {
+            const { data } = await db.from('users').select('*').eq('username', currentUser).maybeSingle();
+            if (data) {
+                currentUserData = data;
+                document.getElementById('userBalance').innerText = `${Number(currentUserData.balance).toLocaleString()} ₭`;
+            }
+        }
+
+        function switchAuthTab(type) {
+            document.getElementById('tabLogin').classList.toggle('active', type === 'login');
+            document.getElementById('tabRegister').classList.toggle('active', type === 'register');
+            document.getElementById('loginForm').style.display = type === 'login' ? 'block' : 'none';
+            document.getElementById('registerForm').style.display = type === 'register' ? 'block' : 'none';
+        }
+
+        async function handleRegister() {
+            initAudio();
+            const u = document.getElementById('regUser').value.trim();
+            const p = document.getElementById('regPass').value.trim();
+            if (!u || !p) { playBeepSound('error'); return alert('ກະລຸນາກອກຂໍ້ມູນໃຫ້ຄົບ!'); }
+
+            const accNum = '888' + Math.floor(100000 + Math.random() * 900000);
+            
+            const { error } = await db.from('users').upsert([
+                { username: u, password: String(p), balance: 0, acc_no: accNum }
+            ], { onConflict: 'username' });
+
+            if (error) { 
+                playBeepSound('error'); 
+                alert('❌ ເກີດຂໍ້ຜິດພາດ: ' + error.message); 
+            } else { 
+                playBeepSound('success');
+                alert(`✅ ບັນທຶກ User ${u} ສຳເລັດ!\nເລກບັນຊີ: ${accNum}`); 
+                switchAuthTab('login'); 
+            }
+        }
+
+        async function handleLogin() {
+            initAudio();
+            playBeepSound('success'); // 🎵 ປົດລັອກສຽງໃນ Browser
+
+            const u = document.getElementById('loginUser').value.trim();
+            const p = document.getElementById('loginPass').value.trim();
+
+            if (u === ADMIN_USER && p === ADMIN_PASS) {
+                currentUser = "ADMIN";
+                localStorage.setItem('evej_curr_user', "ADMIN");
+                showAdminPanel();
+                return;
+            }
+
+            const { data } = await db.from('users').select('*').eq('username', u).eq('password', String(p)).maybeSingle();
+
+            if (data) {
+                currentUser = u;
+                currentUserData = data;
+                localStorage.setItem('evej_curr_user', u);
+                showUserDashboard();
+            } else { 
+                playBeepSound('error'); 
+                alert('❌ ຊື່ຜູ້ໃຊ້ ຫຼື ລະຫັດຜ່ານບໍ່ຖືກຕ້ອງ!'); 
+            }
+        }
+
+        async function showUserDashboard() {
+            const { data } = await db.from('users').select('*').eq('username', currentUser).maybeSingle();
+            if(data) currentUserData = data;
+
+            document.getElementById('authSection').style.display = 'none';
+            document.getElementById('adminSection').style.display = 'none';
+            document.getElementById('dashSection').style.display = 'block';
+
+            document.getElementById('userGreeting').innerText = `👤 ${currentUser}`;
+            document.getElementById('userBalance').innerText = `${Number(currentUserData.balance).toLocaleString()} ₭`;
+            document.getElementById('accNumber').innerText = `ເລກບັນຊີ: ${currentUserData.acc_no}`;
+            
+            renderUserHistory();
+            setupRealtime(); // ເປີດລະບົບ Realtime ເມື່ອ Dashboard ພ້ອມ
+        }
+
+        async function submitDeposit() {
+            initAudio();
+            const amt = parseInt(document.getElementById('depositAmt').value);
+            if (isNaN(amt) || amt <= 0) { playBeepSound('error'); return alert('ຈຳນວນເງິນບໍ່ຖືກຕ້ອງ!'); }
+            await db.from('requests').insert([{ username: currentUser, type: 'ฝากเงิน', amount: amt }]);
+            closeModal('depositModal');
+            playBeepSound('success');
+            alert('✅ ສົ່ງຄຳຮ້ອງຝາກເງິນແລ້ວ!');
+        }
+
+        async function submitWithdraw() {
+            initAudio();
+            const amt = parseInt(document.getElementById('withdrawAmt').value);
+            if (isNaN(amt) || amt <= 0) { playBeepSound('error'); return alert('ຈຳນວນເງິນບໍ່ຖືກຕ້ອງ!'); }
+            if (currentUserData.balance < amt) { playBeepSound('error'); return alert('❌ ຍອດເງິນບໍ່ພໍ!'); }
+            await db.from('requests').insert([{ username: currentUser, type: 'ถอนเงิน', amount: amt }]);
+            closeModal('withdrawModal');
+            playBeepSound('success');
+            alert('✅ ສົ່ງຄຳຮ້ອງຖອນເງິນແລ້ວ!');
+        }
+
+        async function processTransfer() {
+            initAudio();
+            const targetAcc = document.getElementById('targetAccInput').value.trim();
+            const amt = parseInt(document.getElementById('transferAmtInput').value);
+            if (!targetAcc || isNaN(amt) || amt <= 0) { playBeepSound('error'); return alert('ຂໍ້ມູນບໍ່ຖືກຕ້ອງ!'); }
+            if (currentUserData.balance < amt) { playBeepSound('error'); return alert('❌ ຍອດເງິນບໍ່ພໍ!'); }
+
+            const { data: receiver } = await db.from('users').select('*').eq('acc_no', targetAcc).maybeSingle();
+            if (!receiver) { playBeepSound('error'); return alert('❌ ບໍ່ພົບເລກບັນຊີຜູ້ຮັບ!'); }
+            if (receiver.username === currentUser) { playBeepSound('error'); return alert('❌ ບໍ່ສາມາດໂອນໃຫ້ຕົນເອງໄດ້!'); }
+
+            await db.from('users').update({ balance: Number(currentUserData.balance) - amt }).eq('username', currentUser);
+            await db.from('users').update({ balance: Number(receiver.balance) + amt }).eq('username', receiver.username);
+
+            const slip = { id: 'SLIP-' + Date.now(), type: 'ໂອນເງິນ', sender: currentUser, receiver: receiver.username, amount: amt, time: new Date().toLocaleString('lo-LA') };
+            await db.from('slips').insert([slip]);
+
+            closeModal('transferModal');
+            playBeepSound('success'); // ສຽງຕີ້ບຂອງຜູ້ໂອນ
+
+            showSlipModal(slip);
+            updateUserBalanceOnly();
+            renderUserHistory();
+        }
+
+        async function renderUserHistory() {
+            const container = document.getElementById('userRequestList');
+            container.innerHTML = '';
+            const { data: slips } = await db.from('slips').select('*').or(`sender.eq.${currentUser},receiver.eq.${currentUser}`);
+
+            if (!slips || slips.length === 0) return container.innerHTML = '<div style="text-align:center; font-size:11px; color:#94a3b8;">ບໍ່ມີປະວັດ</div>';
+
+            slips.reverse().forEach(s => {
+                const isGain = s.receiver === currentUser;
+                container.innerHTML += `
+                    <div class="item-card" onclick='showSlipModal(${JSON.stringify(s)})' style="cursor:pointer;">
+                        <div style="display:flex; justify-content:space-between;">
+                            <b>${s.type}</b>
+                            <span style="color:${isGain ? '#10b981' : '#ef4444'}; font-weight:bold;">${isGain ? '+' : '-'}${Number(s.amount).toLocaleString()} ₭</span>
+                        </div>
+                        <div style="font-size:10px; color:#94a3b8; margin-top:2px;">${s.time}</div>
+                    </div>`;
+            });
+        }
+
+        function showAdminPanel() {
+            document.getElementById('authSection').style.display = 'none';
+            document.getElementById('dashSection').style.display = 'none';
+            document.getElementById('adminSection').style.display = 'block';
+            renderAdminRequests();
+        }
+
+        function switchAdminTab(type) {
+            document.getElementById('tabAdminReq').classList.toggle('active', type === 'req');
+            document.getElementById('tabAdminUsers').classList.toggle('active', type === 'users');
+            document.getElementById('adminReqView').style.display = type === 'req' ? 'block' : 'none';
+            document.getElementById('adminUserView').style.display = type === 'users' ? 'block' : 'none';
+            if (type === 'users') renderAdminUsers();
+            else renderAdminRequests();
+        }
+
+        async function renderAdminRequests() {
+            const list = document.getElementById('adminRequestList');
+            const { data: reqs } = await db.from('requests').select('*').order('id', { ascending: false });
+            list.innerHTML = '';
+            if (!reqs || reqs.length === 0) return list.innerHTML = '<div style="text-align:center; font-size:12px; color:#94a3b8;">ບໍ່ມີຄຳຮ້ອງ</div>';
+
+            reqs.forEach(r => {
+                let badge = r.status === 'pending' ? '<span class="badge badge-pending">ລໍຖ້າ</span>' :
+                            r.status === 'success' ? '<span class="badge badge-success">ສຳເລັດ</span>' : '<span class="badge badge-failed">ບໍ່ສຳເລັດ</span>';
+                let btns = r.status === 'pending' ? `
+                    <div style="display:flex; gap:6px; margin-top:8px;">
+                        <button class="btn btn-green" style="padding:4px; font-size:11px; margin:0;" onclick="handleAdminApprove(${r.id}, '${r.username}', '${r.type}', ${r.amount}, true)">✅ ອະນຸມັດ</button>
+                        <button class="btn btn-red" style="padding:4px; font-size:11px; margin:0;" onclick="handleAdminApprove(${r.id}, '${r.username}', '${r.type}', ${r.amount}, false)">❌ ປະຕິເສດ</button>
+                    </div>` : '';
+
+                list.innerHTML += `<div class="item-card"><div style="display:flex; justify-content:space-between;"><span><b>👤 ${r.username}</b> (${r.type})</span>${badge}</div><div style="color:#10b981; font-weight:bold; margin-top:4px;">💰 ${Number(r.amount).toLocaleString()} ₭</div>${btns}</div>`;
+            });
+        }
+
+        async function handleAdminApprove(reqId, username, type, amount, isApprove) {
+            initAudio();
+            if (isApprove) {
+                const { data: u } = await db.from('users').select('*').eq('username', username).maybeSingle();
+                if (!u) { playBeepSound('error'); return alert('❌ ບໍ່ພົບຂໍ້ມູນ User!'); }
+
+                let newBalance = Number(u.balance);
+
+                if (type === 'ฝากเงิน') {
+                    newBalance += Number(amount);
+                    await db.from('users').update({ balance: newBalance }).eq('username', username);
+                    await db.from('slips').insert([{ id: 'SLIP-' + Date.now(), type: 'ຝາກເງິນ (Admin ອະນຸມັດ)', sender: 'SYSTEM (ADMIN)', receiver: username, amount: Number(amount), time: new Date().toLocaleString('lo-LA') }]);
+                } else if (type === 'ถอนเงิน') {
+                    if (Number(u.balance) < Number(amount)) { playBeepSound('error'); return alert('❌ ຍອດເງິນ User ບໍ່ພໍຖອນ!'); }
+                    newBalance -= Number(amount);
+                    await db.from('users').update({ balance: newBalance }).eq('username', username);
+                    await db.from('slips').insert([{ id: 'SLIP-' + Date.now(), type: 'ຖອນເງິນ (Admin ອະນຸມັດ)', sender: username, receiver: 'SYSTEM (ADMIN)', amount: Number(amount), time: new Date().toLocaleString('lo-LA') }]);
+                }
+
+                await db.from('requests').update({ status: 'success' }).eq('id', reqId);
+                playBeepSound('success');
+                alert('✅ ອະນຸມັດ ແລະ ອັບເດດຍອດເງິນຮຽບຮ້ອຍ!');
+            } else {
+                await db.from('requests').update({ status: 'failed' }).eq('id', reqId);
+                playBeepSound('error');
+                alert('❌ ປະຕິເສດຄຳຮ້ອງແລ້ວ!');
+            }
+            renderAdminRequests();
+        }
+
+        async function renderAdminUsers() {
+            const container = document.getElementById('adminUserList');
+            container.innerHTML = '<div style="text-align:center; font-size:12px; color:#94a3b8;">ກຳລັງໂຫຼດ...</div>';
+            const { data: users, error } = await db.from('users').select('*');
+            if (error || !users) return container.innerHTML = '<div style="text-align:center; font-size:12px; color:#ef4444;">ເກີດຂໍ້ຜິດພາດ</div>';
+
+            container.innerHTML = '';
+            users.forEach(u => {
+                container.innerHTML += `
+                    <div class="item-card" style="margin-bottom:8px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <div>
+                                <b style="color:#38bdf8;">👤 ${u.username}</b>
+                                <div style="font-size:11px; color:#f59e0b; font-weight:bold;">🔑 Pass: ${u.password}</div>
+                                <div style="font-size:11px; color:#94a3b8;">ເລກບັນຊີ: ${u.acc_no}</div>
+                                <div style="font-size:11px; color:#10b981;">💰 ${Number(u.balance).toLocaleString()} ₭</div>
+                            </div>
+                            <div style="display:flex; gap:4px;">
+                                <button class="btn btn-warning" style="width:auto; padding:4px 8px; font-size:10px; margin:0;" onclick="adminEditBalance('${u.username}', ${u.balance})">✏️ ປ່ຽນເງິນ</button>
+                                <button class="btn btn-red" style="width:auto; padding:4px 8px; font-size:10px; margin:0;" onclick="adminDeleteUser('${u.username}')">🗑️ ລົບ</button>
+                            </div>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        async function adminCreateUser() {
+            initAudio();
+            const u = document.getElementById('addAdminUser').value.trim();
+            const p = document.getElementById('addAdminPass').value.trim();
+            const b = parseInt(document.getElementById('addAdminBal').value) || 0;
+            if (!u || !p) { playBeepSound('error'); return alert('ກະລຸນາກອກຊື່ ແລະ ລະຫັດຜ່ານ!'); }
+            const accNum = '888' + Math.floor(100000 + Math.random() * 900000);
+
+            const { error } = await db.from('users').upsert([
+                { username: u, password: String(p), balance: b, acc_no: accNum }
+            ], { onConflict: 'username' });
+
+            if (error) { playBeepSound('error'); alert('❌ ເພີ່ມບໍ່ສຳເລັດ!'); }
+            else { playBeepSound('success'); alert('✅ ເພີ່ມ User ສຳເລັດ!'); closeModal('addUserModal'); renderAdminUsers(); }
+        }
+
+        async function adminEditBalance(username, currentBal) {
+            initAudio();
+            const newBal = prompt(`ກໍານົດຍອດເງິນໃໝ່ໃຫ້ ${username}:`, currentBal);
+            if (newBal !== null && !isNaN(newBal)) {
+                await db.from('users').update({ balance: Number(newBal) }).eq('username', username);
+                playBeepSound('success');
+                alert('✅ ອັບເດດຍອດເງິນແລ້ວ!');
+                renderAdminUsers();
+            }
+        }
+
+        async function adminDeleteUser(username) {
+            initAudio();
+            if (confirm(`ຢືນຢັນທີ່ຈະລົບ User "${username}" ອອກຈາກລະບົບ?`)) {
+                await db.from('users').delete().eq('username', username);
+                playBeepSound('success');
+                alert('✅ ລົບ User ຮຽບຮ້ອຍ!');
+                renderAdminUsers();
+            }
+        }
+
+        function showSlipModal(slip) {
+            document.getElementById('slipContent').innerHTML = `
+                <div class="slip-title">📄 ສະລີບການເຮັດທຸລະກຳ</div>
+                <div class="slip-row"><span>ປະເພດ:</span><b>${slip.type}</b></div>
+                <div class="slip-row"><span>ຜູ້ໂອນ:</span><b>${slip.sender}</b></div>
+                <div class="slip-row"><span>ຜູ້ຮັບ:</span><b>${slip.receiver}</b></div>
+                <div class="slip-row"><span>ຈຳນວນເງິນ:</span><b style="color:#10b981; font-size:14px;">${Number(slip.amount).toLocaleString()} ₭</b></div>
+                <div class="slip-row"><span>ເວລາ:</span><small>${slip.time}</small></div>`;
+            document.getElementById('slipModal').style.display = 'flex';
+        }
+
+        function openQrModal() {
+            document.getElementById('qrDisplay').innerHTML = '';
+            new QRCode(document.getElementById('qrDisplay'), { text: currentUserData.acc_no, width: 140, height: 140 });
+            document.getElementById('qrAccLabel').innerText = `ເລກບັນຊີ: ${currentUserData.acc_no}`;
+            document.getElementById('qrModal').style.display = 'flex';
+        }
+
+        function openScanModal() {
+            document.getElementById('scanModal').style.display = 'flex';
+            if(!html5QrcodeScanner) {
+                html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 200 });
+                html5QrcodeScanner.render((decodedText) => {
+                    closeScanModal();
+                    openModal('transferModal');
+                    document.getElementById('targetAccInput').value = decodedText;
+                });
+            }
+        }
+
+        function closeScanModal() {
+            if(html5QrcodeScanner) { html5QrcodeScanner.clear(); html5QrcodeScanner = null; }
+            document.getElementById('scanModal').style.display = 'none';
+        }
+
+        function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+        function logout() {
+            if (realtimeChannel) db.removeChannel(realtimeChannel);
+            currentUser = null; currentUserData = null;
+            localStorage.removeItem('evej_curr_user');
+            document.getElementById('dashSection').style.display = 'none';
+            document.getElementById('adminSection').style.display = 'none';
+            document.getElementById('authSection').style.display = 'block';
+        }
+    </script>
+</body>
+</html>
